@@ -9,9 +9,22 @@ import SwiftUI
 
 @main
 struct AI_CalendarApp: App {
+    @AppStorage("darkMode") private var darkMode = false
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            TabView {
+                CalendarView()
+                    .tabItem { Label("Calendar", systemImage: "calendar") }
+                    .preferredColorScheme(darkMode ? .dark : .light)
+                
+                TaskView()
+                    .tabItem { Label("Tasks", systemImage: "checklist") }
+                    .preferredColorScheme(darkMode ? .dark : .light)
+
+                SettingsView()
+                    .tabItem { Label("Settings", systemImage: "gear") }
+                    .preferredColorScheme(darkMode ? .dark : .light)
+            }
         }
     }
 }
