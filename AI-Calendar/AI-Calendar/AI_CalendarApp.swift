@@ -6,10 +6,13 @@
 //
 
 import SwiftUI
+import GoogleSignIn
 
 @main
 struct AI_CalendarApp: App {
+    @State var auth = AuthViewModel()
     @AppStorage("darkMode") private var darkMode = false
+    
     var body: some Scene {
         WindowGroup {
             TabView {
@@ -24,6 +27,22 @@ struct AI_CalendarApp: App {
                 SettingsView()
                     .tabItem { Label("Settings", systemImage: "gear") }
                     .preferredColorScheme(darkMode ? .dark : .light)
+                
+            }
+            .environment(auth)
+            .onAppear {
+                GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
+                    // Check if `user` exists; otherwise, do something with `error`
+                    if let user = user {
+                        auth.setUser(u: user)
+                        auth.listEvents()
+                    } else {
+                        print(error)
+                    }
+                }
+            }
+            .onOpenURL { url in
+                GIDSignIn.sharedInstance.handle(url)
             }
         }
     }
