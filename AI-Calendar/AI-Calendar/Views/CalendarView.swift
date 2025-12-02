@@ -29,7 +29,9 @@ func todayAt(hour: Int) -> Date {
 
 struct CalendarView: View {
     @State private var currentWeekOffset = 0
-    @StateObject private var vm = CalendarEventViewModel()   // <-- ViewModel
+    @StateObject private var vm = CalendarEventViewModel()
+    @StateObject private var taskVM = TaskViewModel() // Used to trigger logic on changes
+    
     @State private var showingDatePicker = false
     @State private var selectedDate = Date()
 
@@ -49,92 +51,111 @@ struct CalendarView: View {
     }
 
     var body: some View {
-        GeometryReader { geo in
-            let dayWidth = (geo.size.width - 50) / 7.0
+        NavigationView {
+            GeometryReader { geo in
+                let dayWidth = (geo.size.width - 50) / 7.0
 
-            VStack(spacing: 0) {
+                VStack(spacing: 0) {
 
-                let ws = weekStart(for: currentWeekOffset)
-                let we = appCalendar.date(byAdding: .day, value: 6, to: ws)!
+                    let ws = weekStart(for: currentWeekOffset)
+                    let we = appCalendar.date(byAdding: .day, value: 6, to: ws)!
 
-                // HEADER
-                Text(weekRangeString(start: ws, end: we))
-                    .font(.title3)
-                    .bold()
+                    // HEADER
+                    HStack {
+                        Text(weekRangeString(start: ws, end: we))
+                            .font(.title3)
+                            .bold()
+                        
+                        Spacer()
+                        
+                        // MAGIC BUTTON
+                        Button("Auto Schedule") {
+                            // Grab pending tasks from the task manager and send to calendar
+                            vm.autoSchedule(tasks: taskVM.pendingTasks)
+                        }
+                        .font(.caption)
+                        .padding(6)
+                        .background(Color.blue)
+                        .foregroundColor(.white)
+                        .cornerRadius(8)
+                    }
                     .padding(.top, 8)
+                    .padding(.horizontal)
 
-                // DAY LABELS
-                HStack(spacing: 0) {
-                    ForEach(0..<7) { offset in
-                        let d = appCalendar.date(byAdding: .day, value: offset, to: ws)!
+                    // DAY LABELS
+                    HStack(spacing: 0) {
+                        ForEach(0..<7) { offset in
+                            let d = appCalendar.date(byAdding: .day, value: offset, to: ws)!
+                            VStack {
+                                Text(weekdayString(d))
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                                Text(dayString(d))
+                                    .font(.headline)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding(.vertical, 8)
+
+                    Divider()
+
+                    // WEEK PAGES
+                    TabView(selection: $currentWeekOffset) {
+                        ForEach(-10...10, id: \.self) { offset in
+                            ScrollableWeekView(
+                                weekStart: weekStart(for: offset),
+                                dayWidth: dayWidth,
+                                events: vm.events
+                            )
+                            .tag(offset)
+                        }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .never))
+                    
+                    HStack(spacing: 20) {
+                        // RETURN TO TODAY BUTTON
+                        Button {
+                            withAnimation {
+                                currentWeekOffset = 0
+                            }
+                        } label: {
+                            Image(systemName: "calendar.circle.fill")
+                                .font(.system(size: 28))
+                                .foregroundColor(.blue)
+                        }
+
+                        // JUMP TO DATE BUTTON
+                        Button {
+                            showingDatePicker = true
+                        } label: {
+                            Image(systemName: "calendar.badge.plus")
+                                .font(.system(size: 28))
+                                .foregroundColor(.green)
+                        }
+                    }
+                    .padding(.vertical, 12)
+                    .sheet(isPresented: $showingDatePicker) {
                         VStack {
-                            Text(weekdayString(d))
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                            Text(dayString(d))
-                                .font(.headline)
+                            DatePicker(
+                                "Jump to date",
+                                selection: $selectedDate,
+                                displayedComponents: .date
+                            )
+                            .datePickerStyle(.graphical)
+                            .padding()
+
+                            Button("Go") {
+                                jumpToWeek(of: selectedDate)
+                                showingDatePicker = false
+                            }
+                            .padding()
                         }
-                        .frame(maxWidth: .infinity)
                     }
+
                 }
-                .padding(.vertical, 8)
-
-                Divider()
-
-                // WEEK PAGES
-                TabView(selection: $currentWeekOffset) {
-                    ForEach(-10...10, id: \.self) { offset in
-                        ScrollableWeekView(
-                            weekStart: weekStart(for: offset),
-                            dayWidth: dayWidth,
-                            events: vm.events                // <-- HERE
-                        )
-                        .tag(offset)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                
-                HStack(spacing: 20) {
-                    // RETURN TO TODAY BUTTON
-                    Button {
-                        withAnimation {
-                            currentWeekOffset = 0
-                        }
-                    } label: {
-                        Image(systemName: "calendar.circle.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(.blue)
-                    }
-
-                    // JUMP TO DATE BUTTON
-                    Button {
-                        showingDatePicker = true
-                    } label: {
-                        Image(systemName: "calendar.badge.plus")
-                            .font(.system(size: 28))
-                            .foregroundColor(.green)
-                    }
-                }
-                .padding(.vertical, 12)
-                .sheet(isPresented: $showingDatePicker) {
-                    VStack {
-                        DatePicker(
-                            "Jump to date",
-                            selection: $selectedDate,
-                            displayedComponents: .date
-                        )
-                        .datePickerStyle(.graphical)
-                        .padding()
-
-                        Button("Go") {
-                            jumpToWeek(of: selectedDate)
-                            showingDatePicker = false
-                        }
-                        .padding()
-                    }
-                }
-
             }
+            .navigationBarHidden(true)
         }
     }
     
@@ -252,8 +273,8 @@ struct ScrollableWeekView: View {
         let startFraction = hourFraction(event.start)     // 3.0 for 3:00, etc.
         let endFraction   = hourFraction(event.end)
 
-        let yOffset = (startFraction - 9) * hourHeight
-        let height  = max((endFraction - startFraction) * hourHeight, 4)
+        let yOffset = (startFraction) * hourHeight
+        let height  = max((endFraction - startFraction) * hourHeight, 15) // Min height 15
         
         return VStack(alignment: .leading) {
             Text(event.title)
@@ -272,11 +293,15 @@ struct ScrollableWeekView: View {
         }
     }
 
-    // “NOW” RED LINE USING SAME COORD SYSTEM
+    // “NOW” RED LINE
     var nowLine: some View {
-        // same visual +9h shift you applied to events
-        let shiftedNow = Date().addingTimeInterval(-9 * 60 * 60)
-        let pos = hourFraction(shiftedNow) * hourHeight
+        // Correct calculation for local time fraction
+        let dc = appCalendar.dateComponents([.hour, .minute], from: Date())
+        let h = CGFloat(dc.hour ?? 0)
+        let m = CGFloat(dc.minute ?? 0)
+        let fraction = h + m/60.0
+        
+        let pos = fraction * hourHeight
 
         return Rectangle()
             .fill(Color.red)

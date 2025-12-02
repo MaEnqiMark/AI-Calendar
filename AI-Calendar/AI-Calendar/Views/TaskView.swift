@@ -10,7 +10,7 @@ import SwiftUI
 struct TaskView: View {
     @StateObject private var vm = TaskViewModel()
     @State private var showingAddTaskSheet = false
-    @State private var taskToEdit: TaskItem? = nil // Tracks which task is being edited
+    @State private var taskToEdit: TaskItem? = nil
     
     var body: some View {
         NavigationView {
@@ -23,7 +23,6 @@ struct TaskView: View {
                                 vm.toggleCompletion(for: task)
                             }
                         }
-                        // Allow tapping the row to edit
                         .contentShape(Rectangle())
                         .onTapGesture {
                             taskToEdit = task
@@ -57,7 +56,6 @@ struct TaskView: View {
             .listStyle(.plain)
             .navigationTitle("Tasks")
             .toolbar {
-                // Add Button (Top Right)
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showingAddTaskSheet = true
@@ -66,25 +64,27 @@ struct TaskView: View {
                             .font(.title2)
                     }
                 }
-                // Edit Button (for manual drag/drop on pending tasks)
                 ToolbarItem(placement: .navigationBarLeading) {
                     EditButton()
                 }
             }
-            // SHEET 1: Creating a NEW task
+            // SHEET 1: New Task
             .sheet(isPresented: $showingAddTaskSheet) {
-                TaskEditSheet(taskToEdit: nil) { title, date, priority in
-                    vm.addTask(title: title, date: date, priority: priority)
+                TaskEditSheet(taskToEdit: nil) { title, date, priority, duration in
+                    var newTask = TaskItem(title: title, dueDate: date, priority: priority)
+                    newTask.duration = duration
+                    vm.addTask(newTask)
                     showingAddTaskSheet = false
                 }
             }
-            // SHEET 2: Editing an EXISTING task
+            // SHEET 2: Edit Task
             .sheet(item: $taskToEdit) { task in
-                TaskEditSheet(taskToEdit: task) { title, date, priority in
+                TaskEditSheet(taskToEdit: task) { title, date, priority, duration in
                     var updatedTask = task
                     updatedTask.title = title
                     updatedTask.dueDate = date
                     updatedTask.priority = priority
+                    updatedTask.duration = duration
                     vm.updateTask(updatedTask)
                     taskToEdit = nil
                 }
@@ -100,25 +100,26 @@ struct TaskRow: View {
     
     var body: some View {
         HStack {
-            // Checkbox
             Button(action: onToggle) {
                 Image(systemName: task.isCompleted ? "checkmark.square.fill" : "square")
                     .font(.title2)
                     .foregroundColor(task.isCompleted ? .gray : .primary)
             }
-            .buttonStyle(.plain) // Prevents the whole row from being clickable by the button style
+            .buttonStyle(.plain)
             
-            // Task Name
-            Text(task.title)
-                .strikethrough(task.isCompleted)
+            VStack(alignment: .leading) {
+                Text(task.title)
+                    .strikethrough(task.isCompleted)
+                // Show duration in subtitle
+                Text("Est: \(Int(task.duration/60)) mins")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
             
             Spacer()
             
-            // Date separator stick "|"
-            Text("|")
-                .foregroundColor(.gray)
+            Text("|").foregroundColor(.gray)
             
-            // Date (Due or Completed), indicates the coloring of the date
             if task.isCompleted, let completedDate = task.completedDate {
                 Text(completedDate.formatted(date: .numeric, time: .omitted))
                     .font(.subheadline)
@@ -132,53 +133,46 @@ struct TaskRow: View {
     }
 }
 
-// MARK: - Task Edit Sheet (Previously NewTaskSheet)
+// MARK: - Task Edit Sheet
 struct TaskEditSheet: View {
-    // Optional task to edit. If nil, we are in "Create Mode"
     var taskToEdit: TaskItem?
-    
-    // Callback passes back the data to the parent view to handle (add or update)
-    var onSave: (String, Date, TaskPriority) -> Void
+    var onSave: (String, Date, TaskPriority, TimeInterval) -> Void
     
     @Environment(\.dismiss) var dismiss
     
     @State private var taskTitle: String = ""
     @State private var selectedDate: Date = Date()
     @State private var selectedPriority: TaskPriority = .low
+    @State private var selectedDuration: TimeInterval = 3600 // Default 1 hour
     
-    // Determine title based on mode
-    var modeTitle: String {
-        taskToEdit == nil ? "New Task" : "Edit Task"
-    }
+    let durationOptions: [(String, TimeInterval)] = [
+        ("15 min", 900),
+        ("30 min", 1800),
+        ("45 min", 2700),
+        ("1 hour", 3600),
+        ("1.5 hours", 5400),
+        ("2 hours", 7200),
+        ("3 hours", 10800)
+    ]
+    
+    var modeTitle: String { taskToEdit == nil ? "New Task" : "Edit Task" }
     
     var body: some View {
         NavigationView {
             VStack(alignment: .leading, spacing: 20) {
-                
-                // Editable Title
                 TextField("Task Name", text: $taskTitle)
                     .font(.largeTitle)
                     .padding(.top)
                 
                 Divider()
                 
-                // Input Fields
                 Group {
-                    // Date Due
+                    // Date
                     HStack {
-                        Text("• Date Due:")
+                        Text("• Due Date:")
                             .font(.headline)
                         Spacer()
-                        DatePicker("", selection: $selectedDate, displayedComponents: .date)
-                            .labelsHidden()
-                    }
-                    
-                    // Time Due
-                    HStack {
-                        Text("• Time Due:")
-                            .font(.headline)
-                        Spacer()
-                        DatePicker("", selection: $selectedDate, displayedComponents: .hourAndMinute)
+                        DatePicker("", selection: $selectedDate, displayedComponents: [.date, .hourAndMinute])
                             .labelsHidden()
                     }
                     
@@ -193,18 +187,28 @@ struct TaskEditSheet: View {
                             }
                         }
                         .pickerStyle(.menu)
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(8)
+                    }
+                    
+                    // Duration Picker
+                    HStack {
+                        Text("• Duration:")
+                            .font(.headline)
+                        Spacer()
+                        Picker("Duration", selection: $selectedDuration) {
+                            ForEach(durationOptions, id: \.1) { option in
+                                Text(option.0).tag(option.1)
+                            }
+                        }
+                        .pickerStyle(.menu)
                     }
                 }
                 
                 Spacer()
                 
-                // Save Button
                 HStack {
                     Spacer()
                     Button(action: {
-                        onSave(taskTitle, selectedDate, selectedPriority)
+                        onSave(taskTitle, selectedDate, selectedPriority, selectedDuration)
                         dismiss()
                     }) {
                         Text(taskToEdit == nil ? "Add" : "Save")
@@ -214,34 +218,27 @@ struct TaskEditSheet: View {
                             .padding(.vertical, 10)
                             .background(Color.black)
                             .cornerRadius(20)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 20)
-                                    .stroke(Color.black, lineWidth: 1)
-                            )
                     }
                 }
             }
             .padding()
-            .navigationBarTitleDisplayMode(.inline)
             .navigationTitle(modeTitle)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
+                    Button("Cancel") { dismiss() }
                 }
             }
             .onAppear {
-                // Pre-fill data if editing an existing task
                 if let task = taskToEdit {
                     taskTitle = task.title
                     selectedDate = task.dueDate
                     selectedPriority = task.priority
+                    selectedDuration = task.duration
                 } else {
-                    // Default values for new task
-                    taskTitle = "Task_Name"
+                    taskTitle = "Task Name"
                     selectedDate = Date()
                     selectedPriority = .low
+                    selectedDuration = 3600
                 }
             }
         }
