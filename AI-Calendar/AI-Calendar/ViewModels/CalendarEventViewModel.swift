@@ -6,11 +6,13 @@
 //
 
 import Foundation
-import Combine
 import SwiftUI
+import Observation
 
-final class CalendarEventViewModel: ObservableObject {
-    @Published var events: [CalendarEvent] = [
+@Observable
+class CalendarEventViewModel {
+    
+    var events: [CalendarEvent] = [
         CalendarEvent(
             title: "David Tao",
             start: todayAt(hour: 3),
@@ -30,6 +32,8 @@ final class CalendarEventViewModel: ObservableObject {
             color: .orange
         )
     ]
+    
+    init() {}
 
     func addEvent(_ event: CalendarEvent) {
         events.append(event)
@@ -45,120 +49,83 @@ final class CalendarEventViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Auto Scheduler Logic
+    // MARK: - Auto Schedule Logic
     
     func autoSchedule(tasks: [TaskItem]) {
-        // SORTING LOGIC:
-        // 1. Prioritize Due Date (Urgency)
-        // 2. Then Prioritize Importance (Priority)
-        let sortedTasks = tasks.sorted { task1, task2 in
-            // Compare dates strictly by day (ignoring time for sorting buckets)
-            let day1 = appCalendar.startOfDay(for: task1.dueDate)
-            let day2 = appCalendar.startOfDay(for: task2.dueDate)
-            
-            if day1 != day2 {
-                return day1 < day2 // Earlier date comes first
-            }
-            
-            // If they are due on the same day, let higher priority item win
-            return task1.priority.sortValue > task2.priority.sortValue
-        }
+        // Remove old auto-scheduled tasks
+        events.removeAll { $0.isTask }
         
-        // Times for when a typical user is able to complete tasks
-        let workDayStartHour = 8 // 8 AM
-        let workDayEndHour = 22  // 10 PM
-        
-        // Start looking from "Now"
+        // Schedule tasks according to array order
+        let workDayStartHour = 8
+        let workDayEndHour = 22
         var searchLocation = Date()
+        let buffer: TimeInterval = 900 // 15 min buffer
         
-        // Buffer to prevent tasks from jamming right up against each other
-        let bufferTime: TimeInterval = 900 // 15 minutes
-        
-        for task in sortedTasks {
-            // Find a slot for this specific task
+        for task in tasks {
             if let startSlot = findNextAvailableSlot(duration: task.duration, after: searchLocation, startHour: workDayStartHour, endHour: workDayEndHour) {
                 
-                // Create the event
                 let newEvent = CalendarEvent(
                     title: "Task: \(task.title)",
                     start: startSlot,
                     end: startSlot.addingTimeInterval(task.duration),
-                    color: colorForPriority(task.priority)
+                    color: colorForPriority(task.priority),
+                    isTask: true
                 )
                 
-                self.addEvent(newEvent)
-                
-                // Update current search location to end of this event + buffer
-                searchLocation = newEvent.end.addingTimeInterval(bufferTime)
-            } else {
-                print("Could not find a slot for \(task.title).")
+                events.append(newEvent)
+                searchLocation = newEvent.end.addingTimeInterval(buffer)
             }
         }
     }
     
+    // Find when the events can be placed, within the working hours of the day and next
     private func findNextAvailableSlot(duration: TimeInterval, after date: Date, startHour: Int, endHour: Int) -> Date? {
-        
         var checkDate = date
         let calendar = Calendar.current
         
-        // Limit search to next 3 days
-        for _ in 0..<3 {
-            let morningLimit = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: checkDate)!
-            let eveningLimit = calendar.date(bySettingHour: endHour, minute: 0, second: 0, of: checkDate)!
+        for _ in 0..<3 { // Look 3 days ahead max
+            let morning = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: checkDate)!
+            let evening = calendar.date(bySettingHour: endHour, minute: 0, second: 0, of: checkDate)!
             
-            var candidateStart = checkDate < morningLimit ? morningLimit : checkDate
+            var candidate = checkDate < morning ? morning : checkDate
             
-            if candidateStart >= eveningLimit {
+            if candidate >= evening {
                 checkDate = calendar.date(byAdding: .day, value: 1, to: checkDate)!
                 checkDate = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: checkDate)!
-                candidateStart = checkDate
+                candidate = checkDate
             }
             
-            let dayEvents = events(on: candidateStart).sorted { $0.start < $1.start }
+            let dayEvents = events(on: candidate).sorted { $0.start < $1.start }
             
-            // 1. Gap before first event
-            if let firstEvent = dayEvents.first {
-                if firstEvent.start.timeIntervalSince(candidateStart) >= duration {
-                    return candidateStart
-                }
+            if let first = dayEvents.first {
+                if first.start.timeIntervalSince(candidate) >= duration { return candidate }
             } else {
-                if eveningLimit.timeIntervalSince(candidateStart) >= duration {
-                    return candidateStart
-                }
+                if evening.timeIntervalSince(candidate) >= duration { return candidate }
             }
             
-            // 2. Gaps between events
             for i in 0..<(dayEvents.count - 1) {
-                let currentEvt = dayEvents[i]
-                let nextEvt = dayEvents[i+1]
-                
-                if nextEvt.start.timeIntervalSince(currentEvt.end) >= duration {
-                    if currentEvt.end < eveningLimit {
-                        return currentEvt.end
-                    }
+                let curr = dayEvents[i]
+                let next = dayEvents[i+1]
+                if next.start.timeIntervalSince(curr.end) >= duration {
+                    if curr.end < evening { return curr.end }
                 }
             }
             
-            // 3. Gap after last event
-            if let lastEvent = dayEvents.last {
-                if eveningLimit.timeIntervalSince(lastEvent.end) >= duration {
-                    return lastEvent.end
-                }
+            if let last = dayEvents.last {
+                if evening.timeIntervalSince(last.end) >= duration { return last.end }
             }
             
-            // Move to next day
             checkDate = calendar.date(byAdding: .day, value: 1, to: checkDate)!
             checkDate = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: checkDate)!
         }
-        
         return nil
     }
     
     private func colorForPriority(_ p: TaskPriority) -> Color {
         switch p {
         case .high: return .red
-        case .medium: return .yellow
-        case .low: return .green
+        case .medium: return .blue
+        case .low: return .gray
         }
     }
 }

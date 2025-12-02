@@ -10,6 +10,11 @@ import SwiftUI
 @main
 struct AI_CalendarApp: App {
     @AppStorage("darkMode") private var darkMode = false
+    
+    // Initialize ViewModels as State
+    @State private var calendarVM = CalendarEventViewModel()
+    @State private var taskVM = TaskViewModel()
+
     var body: some Scene {
         WindowGroup {
             TabView {
@@ -24,6 +29,14 @@ struct AI_CalendarApp: App {
                 SettingsView()
                     .tabItem { Label("Settings", systemImage: "gear") }
                     .preferredColorScheme(darkMode ? .dark : .light)
+            }
+            // Inject ViewModels into Environment
+            .environment(calendarVM)
+            .environment(taskVM)
+            .onAppear {
+                // Linking the taskVM viewmodel to the calendar viewmodel
+                taskVM.calendarVM = calendarVM
+                taskVM.syncToCalendar()
             }
         }
     }

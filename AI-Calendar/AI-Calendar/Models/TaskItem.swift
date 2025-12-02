@@ -12,7 +12,7 @@ enum TaskPriority: String, CaseIterable, Codable {
     case medium = "Medium"
     case high = "High"
     
-    // Helper for sorting: Higher number = Higher priority
+    // Higher value = Higher Priority
     var sortValue: Int {
         switch self {
         case .high: return 3
@@ -29,7 +29,5 @@ struct TaskItem: Identifiable, Codable {
     var dueDate: Date = Date()
     var priority: TaskPriority = .medium
     var completedDate: Date? = nil
-    
-    // New: Duration in seconds (Default 1 hour = 3600)
-    var duration: TimeInterval = 3600
+    var duration: TimeInterval = 3600 // Default 1 hour
 }
