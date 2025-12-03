@@ -47,14 +47,9 @@ struct AI_CalendarApp: App {
                         Task {
                             do {
                                 let events = try await calendarViewModel.listEvents(user: user, offset: 2)
-                                print(events)
-                            } catch {
-                                print("Failed to list events:", error)
-                            }
+                            } catch {}
                         }
-                    } else {
-                        print(error)
-                    }
+                    } else {}
                 }
             }
             .onOpenURL { url in

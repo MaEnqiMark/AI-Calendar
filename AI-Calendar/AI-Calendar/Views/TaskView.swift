@@ -14,7 +14,7 @@ struct TaskView: View {
 
     // SwiftData live queries
     @Query(filter: #Predicate<TaskItem> { !$0.isCompleted },
-           sort: \TaskItem.dueDate)
+           sort: \TaskItem.sortIndex)
     var pendingTasks: [TaskItem]
 
     @Query(filter: #Predicate<TaskItem> { $0.isCompleted },
@@ -38,6 +38,9 @@ struct TaskView: View {
                     }
                     .onDelete { offsets in
                         offsets.map { pendingTasks[$0] }.forEach { vm.delete($0, context: context) }
+                    }
+                    .onMove { source, destination in
+                        vm.move(from: source, to: destination, tasks: pendingTasks, context: context)
                     }
                 }
                 
@@ -126,7 +129,7 @@ struct TaskRow: View {
             if !task.isCompleted {
                 Text(task.dueDate.formatted(date: .numeric, time: .omitted))
                     .font(.subheadline)
-                    .foregroundColor(task.priority == .high ? .red : .primary)
+                    .foregroundStyle(task.dueDate < Date.now ? .red : .primary)
             }
         }
         .padding(.vertical, 4)
@@ -233,9 +236,4 @@ struct TaskEditSheet: View {
             }
         }
     }
-}
-
-
-#Preview {
-    TaskView().environment(TaskViewModel())
 }

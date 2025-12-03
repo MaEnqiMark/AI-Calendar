@@ -36,14 +36,25 @@ class TaskViewModel {
     }
 
     func move(from source: IndexSet, to destination: Int, tasks: [TaskItem], context: ModelContext) {
-        // If you want persistent ordering, add a sortIndex to TaskItem
+        var updatedTasks = tasks
+            
+            // Perform the move in the array
+            updatedTasks.move(fromOffsets: source, toOffset: destination)
+            
+            // Update the sortIndex for all items to match their new position
+            for (index, task) in updatedTasks.enumerated() {
+                task.sortIndex = index
+            }
+            
+            // Save changes and sync
+            try? context.save()
         syncToCalendar(context: context)
     }
 
     func syncToCalendar(context: ModelContext) {
         let descriptor = FetchDescriptor<TaskItem>(
             predicate: #Predicate { !$0.isCompleted },
-            sortBy: [.init(\TaskItem.dueDate)]
+            sortBy: [SortDescriptor(\.sortIndex)]
         )
         if let tasks = try? context.fetch(descriptor) {
             calendarVM?.autoSchedule(tasks: tasks)

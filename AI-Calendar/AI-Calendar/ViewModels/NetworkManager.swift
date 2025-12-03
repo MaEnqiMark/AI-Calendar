@@ -124,7 +124,6 @@ class NetworkManager {
 
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
-            print(response)
             throw NetworkError.networkError
         }
         

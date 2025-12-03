@@ -30,6 +30,7 @@ class TaskItem {
     var priority: TaskPriority
     var completedDate: Date?
     var duration: TimeInterval
+    var sortIndex: Int
     
     init(id: UUID = UUID(),
          title: String,
@@ -37,7 +38,8 @@ class TaskItem {
          dueDate: Date = Date(),
          priority: TaskPriority = .medium,
          completedDate: Date? = nil,
-         duration: TimeInterval = 3600) {
+         duration: TimeInterval = 3600,
+         sortIndex: Int = 0) {
         self.id = id
         self.title = title
         self.isCompleted = isCompleted
@@ -45,5 +47,6 @@ class TaskItem {
         self.priority = priority
         self.completedDate = completedDate
         self.duration = duration
+        self.sortIndex = sortIndex
     }
 }

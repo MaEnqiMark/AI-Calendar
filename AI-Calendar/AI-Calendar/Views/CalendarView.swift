@@ -119,7 +119,6 @@ struct CalendarView: View {
             }
         }.onChange(of: currentWeekOffset) {
             guard let currentUser = auth.getUser() else {
-                print("No user!")
                 return
             }
             Task {
