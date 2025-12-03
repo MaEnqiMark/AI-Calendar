@@ -15,8 +15,12 @@ import Observation
 @Observable
 class CalendarEventViewModel {
 
+    // Events will update right after anyway, would be double re-rendering
+    @ObservationIgnored @AppStorage("workDayStart") private var workDayStart = 9
+    @ObservationIgnored @AppStorage("workDayEnd") private var workDayEnd = 17
+    
     // MARK: - Stored Events
-
+    
     var events: [CalendarEvent] = [
         CalendarEvent(
             title: "David Tao",
@@ -108,10 +112,7 @@ class CalendarEventViewModel {
     func autoSchedule(tasks: [TaskItem]) {
         // Remove old auto-scheduled tasks
         events.removeAll { $0.isTask }
-
-        // Schedule tasks according to array order
-        let workDayStartHour = 8
-        let workDayEndHour = 22
+        
         var searchLocation = Date()
         let buffer: TimeInterval = 900 // 15 min buffer
 
@@ -119,8 +120,8 @@ class CalendarEventViewModel {
             if let startSlot = findNextAvailableSlot(
                 duration: task.duration,
                 after: searchLocation,
-                startHour: workDayStartHour,
-                endHour: workDayEndHour
+                startHour: self.workDayStart,
+                endHour: self.workDayEnd
             ) {
 
                 let newEvent = CalendarEvent(
@@ -138,89 +139,89 @@ class CalendarEventViewModel {
     }
 
     // Find when the events can be placed, within the working hours of the day and next
-    private func findNextAvailableSlot(
-        duration: TimeInterval,
-        after date: Date,
-        startHour: Int,
-        endHour: Int
-    ) -> Date? {
-        var checkDate = date
-        let calendar = Calendar.current
+        private func findNextAvailableSlot(
+            duration: TimeInterval,
+            after date: Date,
+            startHour: Int,
+            endHour: Int
+        ) -> Date? {
+            var checkDate = date
+            let calendar = Calendar.current
 
-        // Look 3 days ahead max
-        for _ in 0..<3 {
-            let morning = calendar.date(
-                bySettingHour: startHour,
-                minute: 0,
-                second: 0,
-                of: checkDate
-            )!
-            let evening = calendar.date(
-                bySettingHour: endHour,
-                minute: 0,
-                second: 0,
-                of: checkDate
-            )!
+            // Look 3 days ahead max
+            for _ in 0..<3 {
+                // Define the bounds for this specific day
+                let morning = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: checkDate)!
+                let evening = calendar.date(bySettingHour: endHour, minute: 0, second: 0, of: checkDate)!
 
-            var candidate = checkDate < morning ? morning : checkDate
+                // The earliest we can schedule is the later of:
+                // 1. The generic search pointer (which includes the buffer from the last task)
+                // 2. The start of the work day (morning)
+                // We use 'max' to ensure we never ignore the buffer.
+                let earliestStart = checkDate < morning ? morning : checkDate
 
-            // If we're already past the workday, move to next day
-            if candidate >= evening {
-                checkDate = calendar.date(byAdding: .day, value: 1, to: checkDate)!
-                checkDate = calendar.date(
-                    bySettingHour: startHour,
-                    minute: 0,
-                    second: 0,
-                    of: checkDate
-                )!
-                candidate = checkDate
-            }
+                // Fetch events and sort them
+                let dayEvents = events(on: checkDate).sorted { $0.start < $1.start }
 
-            let dayEvents = events(on: candidate).sorted { $0.start < $1.start }
-
-            // Case 1: free before first event
-            if let first = dayEvents.first {
-                if first.start.timeIntervalSince(candidate) >= duration {
-                    return candidate
-                }
-            } else {
-                // No events at all this day
-                if evening.timeIntervalSince(candidate) >= duration {
-                    return candidate
-                }
-            }
-
-            // Case 2: free between events
-            if dayEvents.count >= 2 {
-                for i in 0..<(dayEvents.count - 1) {
-                    let curr = dayEvents[i]
-                    let next = dayEvents[i + 1]
-                    if next.start.timeIntervalSince(curr.end) >= duration,
-                       curr.end < evening {
-                        return curr.end
+                // --- CASE 1: Try to place BEFORE the first event ---
+                if let first = dayEvents.first {
+                    // If the gap between our start constraint and the first event is big enough
+                    if first.start.timeIntervalSince(earliestStart) >= duration {
+                        // CRITICAL CHECK: Does it finish before the work day ends?
+                        if earliestStart.addingTimeInterval(duration) <= evening {
+                            return earliestStart
+                        }
+                    }
+                } else {
+                    // --- CASE 1b: No events at all this day ---
+                    // CRITICAL CHECK: Does it finish before the work day ends?
+                    if earliestStart.addingTimeInterval(duration) <= evening {
+                        return earliestStart
                     }
                 }
-            }
 
-            // Case 3: free after last event
-            if let last = dayEvents.last {
-                if evening.timeIntervalSince(last.end) >= duration {
-                    return last.end
+                // --- CASE 2: Try to place BETWEEN events ---
+                if dayEvents.count >= 2 {
+                    for i in 0..<(dayEvents.count - 1) {
+                        let curr = dayEvents[i]
+                        let next = dayEvents[i + 1]
+                        
+                        // The potential start is the end of the current event
+                        // BUT we must also respect the 'after' buffer.
+                        // Example: Event ends at 10:00. Buffer says wait til 10:15. We must start at 10:15.
+                        let potentialStart = max(curr.end, earliestStart)
+                        
+                        if next.start.timeIntervalSince(potentialStart) >= duration {
+                            // CRITICAL CHECK: Does it finish before the work day ends?
+                            if potentialStart.addingTimeInterval(duration) <= evening {
+                                return potentialStart
+                            }
+                        }
+                    }
                 }
+
+                // --- CASE 3: Try to place AFTER the last event ---
+                if let last = dayEvents.last {
+                    // Again, respect the buffer.
+                    let potentialStart = max(last.end, earliestStart)
+                    
+                    // CRITICAL CHECK: Does it finish before the work day ends?
+                    if potentialStart.addingTimeInterval(duration) <= evening {
+                        return potentialStart
+                    }
+                }
+
+                // --- Move to Next Day ---
+                // Advance to the next calendar day
+                guard let nextDay = calendar.date(byAdding: .day, value: 1, to: checkDate) else { break }
+                
+                // Reset the search pointer to the start of the work day for tomorrow
+                checkDate = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: nextDay)!
             }
 
-            // Move to next day
-            checkDate = calendar.date(byAdding: .day, value: 1, to: checkDate)!
-            checkDate = calendar.date(
-                bySettingHour: startHour,
-                minute: 0,
-                second: 0,
-                of: checkDate
-            )!
+            return nil
         }
-
-        return nil
-    }
+    
 
     private func colorForPriority(_ p: TaskPriority) -> Color {
         switch p {
