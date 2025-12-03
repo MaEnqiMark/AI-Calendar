@@ -35,18 +35,6 @@ struct SettingsView: View {
                 }
                 
                 GoogleSignInButton(action: auth.handleSignIn)
-                
-                Button("Press me for fun") {
-                    Task {
-                        do {
-                            try await auth.listEvents()
-                        } catch {
-                            print("yikes")
-                        }
-                    }
-                }
-
-                
             }
             .navigationTitle("Settings")
         }

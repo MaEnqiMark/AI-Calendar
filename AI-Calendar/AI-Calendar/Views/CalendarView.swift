@@ -28,8 +28,10 @@ func todayAt(hour: Int) -> Date {
 // =======================================================
 
 struct CalendarView: View {
+    @Environment(CalendarEventViewModel.self) var vm
+    @Environment(AuthViewModel.self) var auth
+
     @State private var currentWeekOffset = 0
-    @StateObject private var vm = CalendarEventViewModel()   // <-- ViewModel
     @State private var showingDatePicker = false
     @State private var selectedDate = Date()
 
@@ -133,9 +135,17 @@ struct CalendarView: View {
                         .padding()
                     }
                 }
-
+            }
+        }.onChange(of: currentWeekOffset) {
+            guard let currentUser = auth.getUser() else {
+                print("No user!")
+                return
+            }
+            Task {
+                await vm.checkIfMustFetchEvents(offset: currentWeekOffset, user: currentUser)
             }
         }
+            
     }
     
     func jumpToWeek(of date: Date) {
