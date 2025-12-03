@@ -60,18 +60,11 @@ import GoogleAPIClientForREST_Calendar
         
         return try await withCheckedThrowingContinuation { continuation in
             service.executeQuery(query) { _, result, error in
-                if let error = error {
-                    continuation.resume(throwing: error)
+                if error != nil {
                     return
                 }
 
                 guard let events = (result as? GTLRCalendar_Events)?.items else {
-                    let err = NSError(
-                        domain: "Calendar",
-                        code: 1,
-                        userInfo: [NSLocalizedDescriptionKey: "Invalid Calendar response"]
-                    )
-                    continuation.resume(throwing: err)
                     return
                 }
 
