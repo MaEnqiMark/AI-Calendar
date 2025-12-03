@@ -22,26 +22,7 @@ class CalendarEventViewModel {
     
     // MARK: - Stored Events
     
-    private var events: [CalendarEvent] = [
-        CalendarEvent(
-            title: "David Tao",
-            start: todayAt(hour: 3),
-            end:   todayAt(hour: 9),
-            color: .blue
-        ),
-        CalendarEvent(
-            title: "Reservation at Kraam Thai",
-            start: todayAt(hour: 17),
-            end:   todayAt(hour: 18),
-            color: .green
-        ),
-        CalendarEvent(
-            title: "Gym",
-            start: todayAt(hour: 20),
-            end:   todayAt(hour: 21),
-            color: .orange
-        )
-    ]
+    private var events: [CalendarEvent] = []
 
     func getEvents() -> [CalendarEvent] {
         return events

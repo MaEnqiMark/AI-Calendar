@@ -4,15 +4,14 @@
 //
 //  Created by Max Davidoff on 12/1/25.
 //
-
 import Foundation
+import SwiftData
 
 enum TaskPriority: String, CaseIterable, Codable {
     case low = "Low"
     case medium = "Medium"
     case high = "High"
     
-    // Higher value = Higher Priority
     var sortValue: Int {
         switch self {
         case .high: return 3
@@ -22,12 +21,29 @@ enum TaskPriority: String, CaseIterable, Codable {
     }
 }
 
-struct TaskItem: Identifiable, Codable {
-    var id = UUID()
+@Model
+class TaskItem {
+    @Attribute(.unique) var id: UUID
     var title: String
-    var isCompleted: Bool = false
-    var dueDate: Date = Date()
-    var priority: TaskPriority = .medium
-    var completedDate: Date? = nil
-    var duration: TimeInterval = 3600 // Default 1 hour
+    var isCompleted: Bool
+    var dueDate: Date
+    var priority: TaskPriority
+    var completedDate: Date?
+    var duration: TimeInterval
+    
+    init(id: UUID = UUID(),
+         title: String,
+         isCompleted: Bool = false,
+         dueDate: Date = Date(),
+         priority: TaskPriority = .medium,
+         completedDate: Date? = nil,
+         duration: TimeInterval = 3600) {
+        self.id = id
+        self.title = title
+        self.isCompleted = isCompleted
+        self.dueDate = dueDate
+        self.priority = priority
+        self.completedDate = completedDate
+        self.duration = duration
+    }
 }

@@ -39,7 +39,9 @@ struct CalendarView: View {
     
     @State private var showingDatePicker = false
     @State private var selectedDate = Date()
-
+    
+    let day = Calendar.current.component(.day, from: Date())
+    
     func weekStart(for offset: Int) -> Date {
         let today = Date()
         let startOfWeek = appCalendar.dateInterval(of: .weekOfYear, for: today)!.start
@@ -94,10 +96,10 @@ struct CalendarView: View {
                     // Controls
                     HStack(spacing: 20) {
                         Button { withAnimation { currentWeekOffset = 0 } } label: {
-                            Image(systemName: "calendar.circle.fill").font(.largeTitle).foregroundColor(.blue)
+                            Image(systemName: "\(String (day)).calendar").font(.largeTitle).foregroundColor(.blue)
                         }
                         Button { showingDatePicker = true } label: {
-                            Image(systemName: "calendar.badge.plus").font(.largeTitle).foregroundColor(.green)
+                            Image(systemName: "calendar").font(.largeTitle).foregroundColor(.green)
                         }
                     }
                     .padding()

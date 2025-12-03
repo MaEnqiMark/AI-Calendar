@@ -7,6 +7,7 @@
 
 import SwiftUI
 import GoogleSignIn
+import SwiftData
 
 @main
 struct AI_CalendarApp: App {
@@ -39,9 +40,6 @@ struct AI_CalendarApp: App {
                 // Link the viewmodels
                 taskViewModel.calendarVM = calendarViewModel
                 
-                // Trigger sync putting tasks on calendar
-                taskViewModel.syncToCalendar()
-                
                 GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
                     // Check if `user` exists; otherwise, do something with `error`
                     if let user = user {
@@ -63,5 +61,6 @@ struct AI_CalendarApp: App {
                 GIDSignIn.sharedInstance.handle(url)
             }
         }
+        .modelContainer(for: [TaskItem.self])
     }
 }

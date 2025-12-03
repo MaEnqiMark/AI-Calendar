@@ -4,30 +4,14 @@
 //
 //  Created by Max Davidoff on 12/1/25.
 //
-
 import Foundation
 import SwiftUI
+import SwiftData
 import Observation
 
 @Observable
 class TaskViewModel {
-    var pendingTasks: [TaskItem] = []
-    var completedTasks: [TaskItem] = []
-    
-    // Bridge to the Calendar 
     weak var calendarVM: CalendarEventViewModel?
-    
-    init() {
-        // Seed data
-        let defaults = [
-            TaskItem(title: "Go to Acme", dueDate: Date(), priority: .medium, duration: 3600),
-            TaskItem(title: "Grade exams", dueDate: Date().addingTimeInterval(3600), priority: .high, duration: 1800),
-            TaskItem(title: "Finish CIS 1951 final project", isCompleted: true, dueDate: Date().addingTimeInterval(-86400), completedDate: Date(), duration: 7200)
-        ]
-        
-        self.pendingTasks = defaults.filter { !$0.isCompleted }
-        self.completedTasks = defaults.filter { $0.isCompleted }
-    }
     
     // MARK: - Logic
     

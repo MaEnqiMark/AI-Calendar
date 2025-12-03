@@ -11,6 +11,7 @@ import GoogleSignInSwift
 struct SettingsView: View {
     @Environment(AuthViewModel.self) var auth
     @Environment(TaskViewModel.self) var taskVM
+    @Environment(\.modelContext) var modelContext
     @Environment(CalendarEventViewModel.self) var calVM
     
     @AppStorage("darkMode") private var darkMode = false
@@ -26,10 +27,6 @@ struct SettingsView: View {
             Form {
                 Section(header: Text("Appearance")) {
                     Toggle("Dark Mode", isOn: $darkMode)
-                }
-
-                Section(header: Text("Behavior")) {
-                    Toggle("Enable Notifications", isOn: $notificationsEnabled)
                 }
 
                 // Working Hours
@@ -58,25 +55,28 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.menu)
                 }
-                if (auth.getUser() != nil) {
-                    Button("Sign out of Google") {
-                        auth.handleSignOut()
-                        calVM.clearEvents()
+                
+                Section(header: Text("Google")) {
+                    if (auth.getUser() != nil) {
+                        Button("Sign out of Google") {
+                            auth.handleSignOut()
+                            calVM.clearEvents()
+                        }
+                    } else {
+                        GoogleSignInButton(scheme: darkMode ? .dark : .light, action: auth.handleSignIn)
                     }
-                } else {
-                    GoogleSignInButton(action: auth.handleSignIn)
                 }
             }
             .navigationTitle("Settings")
             // Trigger the re-calculation of task placement on calendar
             .onChange(of: workDayStart) {
-                taskVM.syncToCalendar()
+                taskVM.syncToCalendar(context:modelContext)
             }
             .onChange(of: workDayEnd) {
-                taskVM.syncToCalendar()
+                taskVM.syncToCalendar(context:modelContext)
             }
             .onChange(of: bufferMinutes) {
-                taskVM.syncToCalendar()
+                taskVM.syncToCalendar(context:modelContext)
             }
         }
     }

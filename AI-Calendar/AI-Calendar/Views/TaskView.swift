@@ -3,13 +3,24 @@
 //  AI-Calendar
 //
 //  Created by Max Davidoff on 12/1/25.
-//
 
 import SwiftUI
+import SwiftData
 
 struct TaskView: View {
     @Environment(TaskViewModel.self) var vm
-    
+    @Environment(\.modelContext) var context
+    @Environment(CalendarEventViewModel.self) var calendarVM
+
+    // SwiftData live queries
+    @Query(filter: #Predicate<TaskItem> { !$0.isCompleted },
+           sort: \TaskItem.dueDate)
+    var pendingTasks: [TaskItem]
+
+    @Query(filter: #Predicate<TaskItem> { $0.isCompleted },
+           sort: \TaskItem.completedDate)
+    var completedTasks: [TaskItem]
+
     @State private var showingAddTaskSheet = false
     @State private var taskToEdit: TaskItem? = nil
     
@@ -17,30 +28,31 @@ struct TaskView: View {
         NavigationView {
             List {
                 // MARK: - To Do Section
-                Section(header: Text("To Do")) {
+                Section(header: Text(vm.pendingTasks.isEmpty && vm.completedTasks.isEmpty ? "Tap on the top right to add your first task!" : "To Do")) {
                     ForEach(vm.pendingTasks) { task in
                         TaskRow(task: task) {
-                            withAnimation { vm.toggleCompletion(for: task) }
+                            withAnimation { vm.toggleCompletion(for: task, context: context) }
                         }
                         .contentShape(Rectangle())
                         .onTapGesture { taskToEdit = task }
                     }
-                    .onDelete { offsets in vm.delete(at: offsets, isCompleted: false) }
-                    .onMove { source, dest in
-                        vm.move(from: source, to: dest)
+                    .onDelete { offsets in
+                        offsets.map { pendingTasks[$0] }.forEach { vm.delete($0, context: context) }
                     }
                 }
                 
                 // MARK: - Completed Section
-                if !vm.completedTasks.isEmpty {
+                if !completedTasks.isEmpty {
                     Section(header: Text("Completed")) {
-                        ForEach(vm.completedTasks) { task in
+                        ForEach(completedTasks) { task in
                             TaskRow(task: task) {
-                                withAnimation { vm.toggleCompletion(for: task) }
+                                withAnimation { vm.toggleCompletion(for: task, context: context) }
                             }
                             .foregroundColor(.gray)
                         }
-                        .onDelete { offsets in vm.delete(at: offsets, isCompleted: true) }
+                        .onDelete { offsets in
+                            offsets.map { completedTasks[$0] }.forEach { vm.delete($0, context: context) }
+                        }
                     }
                 }
             }
@@ -58,22 +70,32 @@ struct TaskView: View {
             }
             .sheet(isPresented: $showingAddTaskSheet) {
                 TaskEditSheet(taskToEdit: nil) { title, date, priority, duration in
-                    var t = TaskItem(title: title, dueDate: date, priority: priority)
-                    t.duration = duration
-                    vm.addTask(t)
+                    let t = TaskItem(
+                        title: title,
+                        isCompleted: false,
+                        dueDate: date,
+                        priority: priority,
+                        completedDate: nil,
+                        duration: duration
+                    )
+                    vm.addTask(t, context: context)
                 }
             }
             .sheet(item: $taskToEdit) { task in
                 TaskEditSheet(taskToEdit: task) { title, date, priority, duration in
-                    var t = task
-                    t.title = title
-                    t.dueDate = date
-                    t.priority = priority
-                    t.duration = duration
-                    vm.updateTask(t)
+                    task.title = title
+                    task.dueDate = date
+                    task.priority = priority
+                    task.duration = duration
+                    vm.updateTask(task, context: context)
                     taskToEdit = nil
                 }
-            }.environment(vm)
+            }
+            .onAppear {
+                vm.calendarVM = calendarVM
+                vm.syncToCalendar(context: context)
+            }
+            .environment(vm)
         }
     }
 }
@@ -114,16 +136,16 @@ struct TaskRow: View {
 struct TaskEditSheet: View {
     var taskToEdit: TaskItem?
     var onSave: (String, Date, TaskPriority, TimeInterval) -> Void
+
     @Environment(\.dismiss) var dismiss
     @Environment(TaskViewModel.self) var vm
 
-    
     @State private var title = ""
     @State private var date = Date()
-    @State private var priority: TaskPriority = .low
+    @State private var priority: TaskPriority = .medium
     @State private var duration: TimeInterval = 3600
     @State private var loading: Bool = false
-    @State private var error: Bool = false
+    @State private var parseError: Bool = false
     
     let durations: [(String, TimeInterval)] = [
         ("15 min", 900), ("30 min", 1800), ("45 min", 2700),
@@ -139,31 +161,39 @@ struct TaskEditSheet: View {
                     Button {
                         Task {
                             do {
-                                error = false
+                                parseError = false
                                 loading = true
-                                if let newTask = try await vm.parseStringForTask(title) {
-                                    title = newTask.title
-                                    date = newTask.dueDate
-                                    priority = newTask.priority
-                                    duration = newTask.duration
-                                } else {
-                                    error = true
-                                }
+
+                                let newTask = try await vm.parseStringForTask(title)
+
+                                title = newTask.title
+                                date = newTask.dueDate
+                                priority = newTask.priority
+                                duration = newTask.duration
+
                                 loading = false
                             } catch {
-                                print("error")
+                                parseError = true       // <-- updated
+                                loading = false
                             }
                         }
                     } label: {
                         HStack {
                             Image(systemName: "sparkles")
-                            Text(error ? "Something went wrong. Click to try again!" : loading ? "Analyzing..." : "Use natural language")
+                            Text(
+                                parseError ? "Something went wrong. Try again!" :
+                                loading ? "Analyzing..." :
+                                "Use natural language"
+                            )
                         }
                     }
                 }
+
                 
                 Section("Details") {
-                    DatePicker("Due Date", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                    DatePicker("Due Date",
+                               selection: $date,
+                               displayedComponents: [.date, .hourAndMinute])
                     
                     Picker("Priority", selection: $priority) {
                         ForEach(TaskPriority.allCases, id: \.self) { p in
@@ -203,4 +233,9 @@ struct TaskEditSheet: View {
             }
         }
     }
+}
+
+
+#Preview {
+    TaskView().environment(TaskViewModel())
 }
