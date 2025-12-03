@@ -11,11 +11,8 @@ import GoogleSignInSwift
 struct SettingsView: View {
     @Environment(AuthViewModel.self) var auth
     @Environment(TaskViewModel.self) var taskVM
-<<<<<<< HEAD
     @Environment(\.modelContext) var modelContext
-=======
     @Environment(CalendarEventViewModel.self) var calVM
->>>>>>> fbfe5f5e377715459db4b9ad463f7b974af0f676
     
     @AppStorage("darkMode") private var darkMode = false
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
