@@ -63,7 +63,12 @@ struct SettingsView: View {
                             calVM.clearEvents()
                         }
                     } else {
-                        GoogleSignInButton(scheme: darkMode ? .dark : .light, action: auth.handleSignIn)
+                        GoogleSignInButton(scheme: darkMode ? .dark : .light) {
+                            Task {
+                                let user = try await auth.handleSignIn()
+                                try await calVM.listEvents(user: user, offset: 2)
+                            }
+                        }
                     }
                 }
             }

@@ -28,8 +28,8 @@ struct TaskView: View {
         NavigationView {
             List {
                 // MARK: - To Do Section
-                Section(header: Text(vm.pendingTasks.isEmpty && vm.completedTasks.isEmpty ? "Tap on the top right to add your first task!" : "To Do")) {
-                    ForEach(vm.pendingTasks) { task in
+                Section(header: Text(pendingTasks.isEmpty && completedTasks.isEmpty ? "Tap on the top right to add your first task!" : "To Do")) {
+                    ForEach(pendingTasks) { task in
                         TaskRow(task: task) {
                             withAnimation { vm.toggleCompletion(for: task, context: context) }
                         }
@@ -173,7 +173,7 @@ struct TaskEditSheet: View {
 
                                 loading = false
                             } catch {
-                                parseError = true       // <-- updated
+                                parseError = true
                                 loading = false
                             }
                         }

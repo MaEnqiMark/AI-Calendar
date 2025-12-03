@@ -21,23 +21,37 @@ import GoogleAPIClientForREST_Calendar
         return self.user
     }
     
-    func handleSignIn() {
+    func handleSignIn() async throws -> GIDGoogleUser {
         guard let rootVC = UIApplication.shared
-                .connectedScenes
-                .compactMap({ $0 as? UIWindowScene })
-                .first?
-                .windows
-                .first?
-                .rootViewController
+            .connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first?
+            .windows
+            .first?
+            .rootViewController
         else {
-          return
+            throw NSError(domain: "No root VC", code: -1)
         }
-        
-        GIDSignIn.sharedInstance.signIn(withPresenting: rootVC, hint: "hi", additionalScopes: ["https://www.googleapis.com/auth/calendar"]) { signInResult, error in
-          guard let result = signInResult else {
-            return
-          }
-            self.user = result.user
+
+        return try await withCheckedThrowingContinuation { continuation in
+            GIDSignIn.sharedInstance.signIn(
+                withPresenting: rootVC,
+                hint: "hi",
+                additionalScopes: ["https://www.googleapis.com/auth/calendar"]
+            ) { signInResult, error in
+                
+                if let error = error {
+                    continuation.resume(throwing: error)
+                    return
+                }
+                guard let user = signInResult?.user else {
+                    continuation.resume(throwing: NSError(domain: "No user", code: -2))
+                    return
+                }
+                
+                self.user = user
+                continuation.resume(returning: user)
+            }
         }
     }
     
