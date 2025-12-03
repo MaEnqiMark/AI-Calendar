@@ -11,6 +11,7 @@ import GoogleSignInSwift
 struct SettingsView: View {
     @Environment(AuthViewModel.self) var auth
     @Environment(TaskViewModel.self) var taskVM
+    @Environment(\.modelContext) var modelContext
     
     @AppStorage("darkMode") private var darkMode = false
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
@@ -63,13 +64,13 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             // Trigger the re-calculation of task placement on calendar
             .onChange(of: workDayStart) {
-                taskVM.syncToCalendar()
+                taskVM.syncToCalendar(context:modelContext)
             }
             .onChange(of: workDayEnd) {
-                taskVM.syncToCalendar()
+                taskVM.syncToCalendar(context:modelContext)
             }
             .onChange(of: bufferMinutes) {
-                taskVM.syncToCalendar()
+                taskVM.syncToCalendar(context:modelContext)
             }
         }
     }

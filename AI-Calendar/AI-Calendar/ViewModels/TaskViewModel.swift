@@ -4,97 +4,58 @@
 //
 //  Created by Max Davidoff on 12/1/25.
 //
-
 import Foundation
 import SwiftUI
+import SwiftData
 import Observation
 
 @Observable
 class TaskViewModel {
-    var pendingTasks: [TaskItem] = []
-    var completedTasks: [TaskItem] = []
-    
-    // Bridge to the Calendar 
     weak var calendarVM: CalendarEventViewModel?
-    
-    init() {
-        // Seed data
-        let defaults = [
-            TaskItem(title: "Go to Acme", dueDate: Date(), priority: .medium, duration: 3600),
-            TaskItem(title: "Grade exams", dueDate: Date().addingTimeInterval(3600), priority: .high, duration: 1800),
-            TaskItem(title: "Finish CIS 1951 final project", isCompleted: true, dueDate: Date().addingTimeInterval(-86400), completedDate: Date(), duration: 7200)
-        ]
-        
-        self.pendingTasks = defaults.filter { !$0.isCompleted }
-        self.completedTasks = defaults.filter { $0.isCompleted }
+
+    init() {}
+
+    func addTask(_ task: TaskItem, context: ModelContext) {
+        context.insert(task)
+        syncToCalendar(context: context)
     }
-    
-    // MARK: - Logic
-    
-    func addTask(_ task: TaskItem) {
-        // Insert based on Date/Priority, but allow user to move later
-        let index = pendingTasks.firstIndex {
-            let d1 = Calendar.current.startOfDay(for: task.dueDate)
-            let d2 = Calendar.current.startOfDay(for: $0.dueDate)
-            if d1 < d2 { return true }
-            if d1 > d2 { return false }
-            return task.priority.sortValue > $0.priority.sortValue
-        } ?? pendingTasks.count
-        
-        pendingTasks.insert(task, at: index)
-        syncToCalendar()
+
+    func updateTask(_ task: TaskItem, context: ModelContext) {
+        syncToCalendar(context: context)
     }
-    
-    func updateTask(_ task: TaskItem) {
-        if let idx = pendingTasks.firstIndex(where: { $0.id == task.id }) {
-            pendingTasks[idx] = task
-            syncToCalendar()
+
+    func toggleCompletion(for task: TaskItem, context: ModelContext) {
+        task.isCompleted.toggle()
+        task.completedDate = task.isCompleted ? Date() : nil
+        syncToCalendar(context: context)
+    }
+
+    func delete(_ task: TaskItem, context: ModelContext) {
+        context.delete(task)
+        syncToCalendar(context: context)
+    }
+
+    func move(from source: IndexSet, to destination: Int, tasks: [TaskItem], context: ModelContext) {
+        // If you want persistent ordering, add a sortIndex to TaskItem
+        syncToCalendar(context: context)
+    }
+
+    func syncToCalendar(context: ModelContext) {
+        let descriptor = FetchDescriptor<TaskItem>(
+            predicate: #Predicate { !$0.isCompleted },
+            sortBy: [.init(\TaskItem.dueDate)]
+        )
+        if let tasks = try? context.fetch(descriptor) {
+            calendarVM?.autoSchedule(tasks: tasks)
         }
     }
-    
-    func toggleCompletion(for task: TaskItem) {
-        if let idx = pendingTasks.firstIndex(where: { $0.id == task.id }) {
-            var t = pendingTasks.remove(at: idx)
-            t.isCompleted = true
-            t.completedDate = Date()
-            completedTasks.insert(t, at: 0)
-            syncToCalendar()
-        } else if let idx = completedTasks.firstIndex(where: { $0.id == task.id }) {
-            var t = completedTasks.remove(at: idx)
-            t.isCompleted = false
-            t.completedDate = nil
-            // Add back to top of pending
-            pendingTasks.insert(t, at: 0)
-            syncToCalendar()
+
+    func parseStringForTask(_ string: String) async throws -> TaskItem {
+        guard let task = try await NetworkManager.instance.analyzeTask(string) else {
+            throw NSError(domain: "TaskParsing", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "Failed to parse task from string."
+            ])
         }
-    }
-    
-    func delete(at offsets: IndexSet, isCompleted: Bool) {
-        if isCompleted {
-            completedTasks.remove(atOffsets: offsets)
-        } else {
-            pendingTasks.remove(atOffsets: offsets)
-            syncToCalendar()
-        }
-    }
-    
-    // MARK: - Reordering Logic
-    
-    func move(from source: IndexSet, to destination: Int) {
-        // Only affects pendingTasks
-        pendingTasks.move(fromOffsets: source, toOffset: destination)
-        
-        // Update calendar to reflect new priority order
-        syncToCalendar()
-    }
-    
-    // MARK: - Communication
-    
-    func syncToCalendar() {
-        calendarVM?.autoSchedule(tasks: pendingTasks)
-    }
-    
-    func parseStringForTask(_ string: String) async throws -> TaskItem? {
-        return try await NetworkManager.instance.analyzeTask(string)
+        return task
     }
 }
