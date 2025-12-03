@@ -10,11 +10,10 @@ import SwiftUI
 // =======================================================
 // MARK: - GLOBAL CALENDAR
 // =======================================================
-let appCalendar: Calendar = {
-    var c = Calendar(identifier: .gregorian)
-    c.timeZone = TimeZone.current
-    return c
-}()
+var appCalendar: Calendar {
+    // Returns the user's current system calendar
+    return Calendar.current
+}
 
 func todayAt(hour: Int) -> Date {
     let now = Date()
@@ -176,6 +175,8 @@ struct ScrollableWeekView: View {
                                         if appCalendar.isDateInToday(date) { nowLine }
                                     }
                                     .frame(width: dayWidth)
+                                    // This one line fixed everything!!!!
+                                    .frame(height: 24 * hourHeight, alignment: .top)
                                     if offset != 6 { Rectangle().fill(Color.gray.opacity(0.3)).frame(width: 1) }
                                 }
                             }
@@ -195,7 +196,7 @@ struct ScrollableWeekView: View {
     func eventView(_ event: CalendarEvent) -> some View {
         let startF = hourFraction(event.start)
         let endF = hourFraction(event.end)
-        let y = (startF - 9) * hourHeight
+        let y = startF * hourHeight
         let h = max((endF - startF) * hourHeight, 15)
         
         return VStack(alignment: .leading) {
@@ -207,8 +208,8 @@ struct ScrollableWeekView: View {
     }
 
     var nowLine: some View {
-        let shiftedNow = Date().addingTimeInterval(-9 * 60 * 60)
-        let pos = hourFraction(shiftedNow) * hourHeight
+        let now = Date()
+        let pos = hourFraction(now) * hourHeight
         
         return Rectangle() .fill(Color.red) .frame(height: 2) .offset(y: pos)
     }
