@@ -123,6 +123,7 @@ struct TaskEditSheet: View {
     @State private var priority: TaskPriority = .low
     @State private var duration: TimeInterval = 3600
     @State private var loading: Bool = false
+    @State private var error: Bool = false
     
     let durations: [(String, TimeInterval)] = [
         ("15 min", 900), ("30 min", 1800), ("45 min", 2700),
@@ -138,12 +139,16 @@ struct TaskEditSheet: View {
                     Button {
                         Task {
                             do {
+                                error = false
                                 loading = true
-                                let newTask = try await vm.parseStringForTask(title)
-                                title = newTask.title
-                                date = newTask.dueDate
-                                priority = newTask.priority
-                                duration = newTask.duration
+                                if let newTask = try await vm.parseStringForTask(title) {
+                                    title = newTask.title
+                                    date = newTask.dueDate
+                                    priority = newTask.priority
+                                    duration = newTask.duration
+                                } else {
+                                    error = true
+                                }
                                 loading = false
                             } catch {
                                 print("error")
@@ -152,7 +157,7 @@ struct TaskEditSheet: View {
                     } label: {
                         HStack {
                             Image(systemName: "sparkles")
-                            Text(loading ? "Analyzing..." : "Use natural language")
+                            Text(error ? "Something went wrong. Click to try again!" : loading ? "Analyzing..." : "Use natural language")
                         }
                     }
                 }

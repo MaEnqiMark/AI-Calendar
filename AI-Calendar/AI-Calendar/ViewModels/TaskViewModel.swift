@@ -94,7 +94,7 @@ class TaskViewModel {
         calendarVM?.autoSchedule(tasks: pendingTasks)
     }
     
-    func parseStringForTask(_ string: String) async throws -> TaskItem {
+    func parseStringForTask(_ string: String) async throws -> TaskItem? {
         return try await NetworkManager.instance.analyzeTask(string)
     }
 }
