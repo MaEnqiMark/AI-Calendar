@@ -15,6 +15,10 @@ struct SettingsView: View {
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
     @AppStorage("autoPriority") private var autoPriority = true
     
+    // Working Hours, defaulting with 9 to 5
+    @AppStorage("workDayStart") private var workDayStart = 9
+    @AppStorage("workDayEnd") private var workDayEnd = 17
+
     var body: some View {
         NavigationView {
             Form {
@@ -26,7 +30,23 @@ struct SettingsView: View {
                 // Behavior
                 Section(header: Text("Behavior")) {
                     Toggle("Enable Notifications", isOn: $notificationsEnabled)
-                    Toggle("Auto-Prioritize Tasks", isOn: $autoPriority)
+                }
+                
+                // Working Hours
+                Section(header: Text("Working Hours")) {
+                    Picker("Start Time", selection: $workDayStart) {
+                        ForEach(0..<24, id: \.self) { hour in
+                            Text(formatHour(hour)).tag(hour)
+                        }
+                    }
+                    .pickerStyle(.menu) // Makes it look like a dropdown
+                    
+                    Picker("End Time", selection: $workDayEnd) {
+                        ForEach(0..<24, id: \.self) { hour in
+                            Text(formatHour(hour)).tag(hour)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
 
                 // Info / About
@@ -38,6 +58,12 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
         }
+    }
+    
+    // Helper to format time
+    func formatHour(_ hour: Int) -> String {
+        let date = Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date())!
+        return date.formatted(date: .omitted, time: .shortened)
     }
 }
 

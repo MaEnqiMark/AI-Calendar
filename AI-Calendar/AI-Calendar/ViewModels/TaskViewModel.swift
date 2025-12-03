@@ -7,69 +7,90 @@
 
 import Foundation
 import SwiftUI
-import Combine
+import Observation
 
-class TaskViewModel: ObservableObject {
-    @Published var tasks: [TaskItem] = [
-        TaskItem(title: "Buy Groceries", dueDate: Date(), priority: .medium),
-        TaskItem(title: "Walk the dog", dueDate: Date().addingTimeInterval(3600), priority: .high),
-        TaskItem(title: "Submit report", isCompleted: true, dueDate: Date().addingTimeInterval(-86400), completedDate: Date())
-    ]
+@Observable
+class TaskViewModel {
+    var pendingTasks: [TaskItem] = []
+    var completedTasks: [TaskItem] = []
     
-    // Derived properties for sections
-    var pendingTasks: [TaskItem] {
-        tasks.filter { !$0.isCompleted }
+    // Bridge to the Calendar 
+    weak var calendarVM: CalendarEventViewModel?
+    
+    init() {
+        // Seed data
+        let defaults = [
+            TaskItem(title: "Go to Acme", dueDate: Date(), priority: .medium, duration: 3600),
+            TaskItem(title: "Grade exams", dueDate: Date().addingTimeInterval(3600), priority: .high, duration: 1800),
+            TaskItem(title: "Finish CIS 1951 final project", isCompleted: true, dueDate: Date().addingTimeInterval(-86400), completedDate: Date(), duration: 7200)
+        ]
+        
+        self.pendingTasks = defaults.filter { !$0.isCompleted }
+        self.completedTasks = defaults.filter { $0.isCompleted }
     }
     
-    var completedTasks: [TaskItem] {
-        tasks.filter { $0.isCompleted }
-            .sorted { ($0.completedDate ?? Date()) > ($1.completedDate ?? Date()) }
+    // MARK: - Logic
+    
+    func addTask(_ task: TaskItem) {
+        // Insert based on Date/Priority, but allow user to move later
+        let index = pendingTasks.firstIndex {
+            let d1 = Calendar.current.startOfDay(for: task.dueDate)
+            let d2 = Calendar.current.startOfDay(for: $0.dueDate)
+            if d1 < d2 { return true }
+            if d1 > d2 { return false }
+            return task.priority.sortValue > $0.priority.sortValue
+        } ?? pendingTasks.count
+        
+        pendingTasks.insert(task, at: index)
+        syncToCalendar()
     }
     
-    func addTask(title: String, date: Date, priority: TaskPriority) {
-        let newTask = TaskItem(title: title, dueDate: date, priority: priority)
-        tasks.insert(newTask, at: 0)
-    }
-    
-    // Function to update an existing task
-    func updateTask(_ updatedTask: TaskItem) {
-        if let index = tasks.firstIndex(where: { $0.id == updatedTask.id }) {
-            tasks[index] = updatedTask
+    func updateTask(_ task: TaskItem) {
+        if let idx = pendingTasks.firstIndex(where: { $0.id == task.id }) {
+            pendingTasks[idx] = task
+            syncToCalendar()
         }
     }
     
     func toggleCompletion(for task: TaskItem) {
-        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-            // Toggle state
-            tasks[index].isCompleted.toggle()
-            
-            // Update timestamp
-            if tasks[index].isCompleted {
-                tasks[index].completedDate = Date()
-            } else {
-                tasks[index].completedDate = nil
-            }
+        if let idx = pendingTasks.firstIndex(where: { $0.id == task.id }) {
+            var t = pendingTasks.remove(at: idx)
+            t.isCompleted = true
+            t.completedDate = Date()
+            completedTasks.insert(t, at: 0)
+            syncToCalendar()
+        } else if let idx = completedTasks.firstIndex(where: { $0.id == task.id }) {
+            var t = completedTasks.remove(at: idx)
+            t.isCompleted = false
+            t.completedDate = nil
+            // Add back to top of pending
+            pendingTasks.insert(t, at: 0)
+            syncToCalendar()
         }
     }
     
-    func delete(at offsets: IndexSet, isCompletedSection: Bool) {
-        // Map the IndexSet from the filtered view back to the main array
-        let sourceList = isCompletedSection ? completedTasks : pendingTasks
-        
-        offsets.forEach { index in
-            if index < sourceList.count {
-                let taskToDelete = sourceList[index]
-                tasks.removeAll { $0.id == taskToDelete.id }
-            }
+    func delete(at offsets: IndexSet, isCompleted: Bool) {
+        if isCompleted {
+            completedTasks.remove(atOffsets: offsets)
+        } else {
+            pendingTasks.remove(atOffsets: offsets)
+            syncToCalendar()
         }
     }
+    
+    // MARK: - Reordering Logic
     
     func move(from source: IndexSet, to destination: Int) {
-        // Reordering is only enabled for Pending tasks
-        var activeTasks = pendingTasks
-        activeTasks.move(fromOffsets: source, toOffset: destination)
+        // Only affects pendingTasks
+        pendingTasks.move(fromOffsets: source, toOffset: destination)
         
-        // Reconstruct the main list: New Active Order + Existing Completed Tasks
-        tasks = activeTasks + completedTasks
+        // Update calendar to reflect new priority order
+        syncToCalendar()
+    }
+    
+    // MARK: - Communication
+    
+    func syncToCalendar() {
+        calendarVM?.autoSchedule(tasks: pendingTasks)
     }
 }
