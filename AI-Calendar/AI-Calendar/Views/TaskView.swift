@@ -73,7 +73,7 @@ struct TaskView: View {
                     vm.updateTask(t)
                     taskToEdit = nil
                 }
-            }
+            }.environment(vm)
         }
     }
 }
@@ -115,11 +115,14 @@ struct TaskEditSheet: View {
     var taskToEdit: TaskItem?
     var onSave: (String, Date, TaskPriority, TimeInterval) -> Void
     @Environment(\.dismiss) var dismiss
+    @Environment(TaskViewModel.self) var vm
+
     
     @State private var title = ""
     @State private var date = Date()
     @State private var priority: TaskPriority = .low
     @State private var duration: TimeInterval = 3600
+    @State private var loading: Bool = false
     
     let durations: [(String, TimeInterval)] = [
         ("15 min", 900), ("30 min", 1800), ("45 min", 2700),
@@ -131,13 +134,42 @@ struct TaskEditSheet: View {
             Form {
                 TextField("Task Name", text: $title)
                 
+                Section("Smart Input") {
+                    Button {
+                        Task {
+                            do {
+                                loading = true
+                                let newTask = try await vm.parseStringForTask(title)
+                                title = newTask.title
+                                date = newTask.dueDate
+                                priority = newTask.priority
+                                duration = newTask.duration
+                                loading = false
+                            } catch {
+                                print("error")
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Image(systemName: "sparkles")
+                            Text(loading ? "Analyzing..." : "Use natural language")
+                        }
+                    }
+                }
+                
                 Section("Details") {
                     DatePicker("Due Date", selection: $date, displayedComponents: [.date, .hourAndMinute])
+                    
                     Picker("Priority", selection: $priority) {
-                        ForEach(TaskPriority.allCases, id: \.self) { p in Text(p.rawValue).tag(p) }
+                        ForEach(TaskPriority.allCases, id: \.self) { p in
+                            Text(p.rawValue).tag(p)
+                        }
                     }
+                    
                     Picker("Duration", selection: $duration) {
-                        ForEach(durations, id: \.1) { opt in Text(opt.0).tag(opt.1) }
+                        ForEach(durations, id: \.1) { opt in
+                            Text(opt.0).tag(opt.1)
+                        }
                     }
                 }
                 
@@ -152,11 +184,16 @@ struct TaskEditSheet: View {
             }
             .navigationTitle(taskToEdit == nil ? "New Task" : "Edit Task")
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
             }
             .onAppear {
                 if let t = taskToEdit {
-                    title = t.title; date = t.dueDate; priority = t.priority; duration = t.duration
+                    title = t.title
+                    date = t.dueDate
+                    priority = t.priority
+                    duration = t.duration
                 }
             }
         }

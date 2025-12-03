@@ -36,6 +36,12 @@ struct AI_CalendarApp: App {
             .environment(calendarViewModel)
             .environment(taskViewModel)
             .onAppear {
+                // Link the viewmodels
+                taskViewModel.calendarVM = calendarViewModel
+                
+                // Trigger sync putting tasks on calendar
+                taskViewModel.syncToCalendar()
+                
                 GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
                     // Check if `user` exists; otherwise, do something with `error`
                     if let user = user {

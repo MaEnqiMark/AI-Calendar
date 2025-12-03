@@ -10,11 +10,10 @@ import SwiftUI
 // =======================================================
 // MARK: - GLOBAL CALENDAR
 // =======================================================
-let appCalendar: Calendar = {
-    var c = Calendar(identifier: .gregorian)
-    c.timeZone = TimeZone.current
-    return c
-}()
+var appCalendar: Calendar {
+    // Returns the user's current system calendar
+    return Calendar.current
+}
 
 func todayAt(hour: Int) -> Date {
     let now = Date()
@@ -49,6 +48,8 @@ struct CalendarView: View {
         let localStart = appCalendar.date(from: dc)!
         return appCalendar.date(byAdding: .day, value: offset * 7, to: localStart)!
     }
+    
+    
 
     var body: some View {
         NavigationView {
@@ -174,6 +175,8 @@ struct ScrollableWeekView: View {
                                         if appCalendar.isDateInToday(date) { nowLine }
                                     }
                                     .frame(width: dayWidth)
+                                    // This one line fixed everything!!!!
+                                    .frame(height: 24 * hourHeight, alignment: .top)
                                     if offset != 6 { Rectangle().fill(Color.gray.opacity(0.3)).frame(width: 1) }
                                 }
                             }
@@ -205,9 +208,10 @@ struct ScrollableWeekView: View {
     }
 
     var nowLine: some View {
-        let dc = appCalendar.dateComponents([.hour, .minute], from: Date())
-        let frac = CGFloat(dc.hour ?? 0) + CGFloat(dc.minute ?? 0)/60.0
-        return Rectangle().fill(Color.red).frame(height: 2).offset(y: frac * hourHeight)
+        let now = Date()
+        let pos = hourFraction(now) * hourHeight
+        
+        return Rectangle() .fill(Color.red) .frame(height: 2) .offset(y: pos)
     }
 
     func hourFraction(_ date: Date) -> CGFloat {

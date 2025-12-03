@@ -93,4 +93,8 @@ class TaskViewModel {
     func syncToCalendar() {
         calendarVM?.autoSchedule(tasks: pendingTasks)
     }
+    
+    func parseStringForTask(_ string: String) async throws -> TaskItem {
+        return try await NetworkManager.instance.analyzeTask(string)
+    }
 }

@@ -15,8 +15,13 @@ import Observation
 @Observable
 class CalendarEventViewModel {
 
+    // Events will update right after anyway, would be double re-rendering
+    @ObservationIgnored @AppStorage("bufferMinutes") private var bufferMinutes = 15
+    @ObservationIgnored @AppStorage("workDayStart") private var workDayStart = 9
+    @ObservationIgnored @AppStorage("workDayEnd") private var workDayEnd = 17
+    
     // MARK: - Stored Events
-
+    
     var events: [CalendarEvent] = [
         CalendarEvent(
             title: "David Tao",
@@ -102,25 +107,27 @@ class CalendarEventViewModel {
             appCalendar.isDate($0.start, equalTo: day, toGranularity: .day)
         }
     }
+    
+    // Helper to convert minutes to seconds
+    private var currentBuffer: TimeInterval {
+        return TimeInterval(bufferMinutes * 60)
+    }
 
     // MARK: - Auto Schedule Logic
 
     func autoSchedule(tasks: [TaskItem]) {
         // Remove old auto-scheduled tasks
         events.removeAll { $0.isTask }
-
-        // Schedule tasks according to array order
-        let workDayStartHour = 8
-        let workDayEndHour = 22
+        
         var searchLocation = Date()
-        let buffer: TimeInterval = 900 // 15 min buffer
+        let buffer = self.currentBuffer
 
         for task in tasks {
             if let startSlot = findNextAvailableSlot(
                 duration: task.duration,
                 after: searchLocation,
-                startHour: workDayStartHour,
-                endHour: workDayEndHour
+                startHour: self.workDayStart,
+                endHour: self.workDayEnd
             ) {
 
                 let newEvent = CalendarEvent(
@@ -139,94 +146,83 @@ class CalendarEventViewModel {
 
     // Find when the events can be placed, within the working hours of the day and next
     private func findNextAvailableSlot(
-        duration: TimeInterval,
-        after date: Date,
-        startHour: Int,
-        endHour: Int
-    ) -> Date? {
-        var checkDate = date
-        let calendar = Calendar.current
+            duration: TimeInterval,
+            after date: Date,
+            startHour: Int,
+            endHour: Int
+        ) -> Date? {
+            var checkDate = date
+            let calendar = Calendar.current
+            
+            // Define the buffer
+            let standardBuffer = self.currentBuffer
 
-        // Look 3 days ahead max
-        for _ in 0..<3 {
-            let morning = calendar.date(
-                bySettingHour: startHour,
-                minute: 0,
-                second: 0,
-                of: checkDate
-            )!
-            let evening = calendar.date(
-                bySettingHour: endHour,
-                minute: 0,
-                second: 0,
-                of: checkDate
-            )!
+            for _ in 0..<3 {
+                let morning = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: checkDate)!
+                let evening = calendar.date(bySettingHour: endHour, minute: 0, second: 0, of: checkDate)!
+                
+                // This 'earliestStart' tracks the end of the previous Auto-Scheduled Task
+                let earliestStart = checkDate < morning ? morning : checkDate
 
-            var candidate = checkDate < morning ? morning : checkDate
+                let dayEvents = events(on: checkDate).sorted { $0.start < $1.start }
 
-            // If we're already past the workday, move to next day
-            if candidate >= evening {
-                checkDate = calendar.date(byAdding: .day, value: 1, to: checkDate)!
-                checkDate = calendar.date(
-                    bySettingHour: startHour,
-                    minute: 0,
-                    second: 0,
-                    of: checkDate
-                )!
-                candidate = checkDate
-            }
-
-            let dayEvents = events(on: candidate).sorted { $0.start < $1.start }
-
-            // Case 1: free before first event
-            if let first = dayEvents.first {
-                if first.start.timeIntervalSince(candidate) >= duration {
-                    return candidate
-                }
-            } else {
-                // No events at all this day
-                if evening.timeIntervalSince(candidate) >= duration {
-                    return candidate
-                }
-            }
-
-            // Case 2: free between events
-            if dayEvents.count >= 2 {
-                for i in 0..<(dayEvents.count - 1) {
-                    let curr = dayEvents[i]
-                    let next = dayEvents[i + 1]
-                    if next.start.timeIntervalSince(curr.end) >= duration,
-                       curr.end < evening {
-                        return curr.end
+                // --- CASE 1: Place BEFORE the first event ---
+                if let first = dayEvents.first {
+                    if first.start.timeIntervalSince(earliestStart) >= duration {
+                        if earliestStart.addingTimeInterval(duration) <= evening {
+                            return earliestStart
+                        }
+                    }
+                } else {
+                    // No events today
+                    if earliestStart.addingTimeInterval(duration) <= evening {
+                        return earliestStart
                     }
                 }
-            }
 
-            // Case 3: free after last event
-            if let last = dayEvents.last {
-                if evening.timeIntervalSince(last.end) >= duration {
-                    return last.end
+                // --- CASE 2: Place BETWEEN events ---
+                if dayEvents.count >= 2 {
+                    for i in 0..<(dayEvents.count - 1) {
+                        let curr = dayEvents[i]
+                        let next = dayEvents[i + 1]
+                        
+                        let potentialStart = max(curr.end.addingTimeInterval(standardBuffer), earliestStart)
+                        
+                        if next.start.timeIntervalSince(potentialStart) >= duration {
+                            if potentialStart.addingTimeInterval(duration) <= evening {
+                                return potentialStart
+                            }
+                        }
+                    }
                 }
+
+                // --- CASE 3: Place AFTER the last event ---
+                if let last = dayEvents.last {
+                    
+                    let potentialStart = max(last.end.addingTimeInterval(standardBuffer), earliestStart)
+                    if potentialStart.addingTimeInterval(duration) <= evening {
+                        return potentialStart
+                    }
+                }
+
+                // Move to Next Day
+                guard let nextDay = calendar.date(byAdding: .day, value: 1, to: checkDate) else { break }
+                checkDate = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: nextDay)!
             }
 
-            // Move to next day
-            checkDate = calendar.date(byAdding: .day, value: 1, to: checkDate)!
-            checkDate = calendar.date(
-                bySettingHour: startHour,
-                minute: 0,
-                second: 0,
-                of: checkDate
-            )!
+            return nil
         }
+    
 
-        return nil
-    }
-
+    let highPriority = Color(red: 0.35, green: 0.00, blue: 0.70)
+    let mediumPriority = Color(red: 0.58, green: 0.35, blue: 0.92)
+    let lowPriority = Color(red: 0.85, green: 0.78, blue: 0.96)
+    
     private func colorForPriority(_ p: TaskPriority) -> Color {
         switch p {
-        case .high:   return .red
-        case .medium: return .blue
-        case .low:    return .gray
+        case .high:   return highPriority
+        case .medium: return mediumPriority
+        case .low:    return lowPriority
         }
     }
 
