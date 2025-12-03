@@ -84,7 +84,7 @@ struct CalendarView: View {
                             ScrollableWeekView(
                                 weekStart: weekStart(for: offset),
                                 dayWidth: dayWidth,
-                                events: vm.events
+                                events: vm.getEvents()
                             )
                             .tag(offset)
                         }

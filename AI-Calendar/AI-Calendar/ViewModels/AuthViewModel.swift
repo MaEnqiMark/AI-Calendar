@@ -40,5 +40,10 @@ import GoogleAPIClientForREST_Calendar
             self.user = result.user
         }
     }
+    
+    func handleSignOut() {
+        GIDSignIn.sharedInstance.signOut()
+        self.user = nil
+    }
 }
 

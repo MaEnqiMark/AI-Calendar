@@ -22,7 +22,7 @@ class CalendarEventViewModel {
     
     // MARK: - Stored Events
     
-    var events: [CalendarEvent] = [
+    private var events: [CalendarEvent] = [
         CalendarEvent(
             title: "David Tao",
             start: todayAt(hour: 3),
@@ -43,6 +43,14 @@ class CalendarEventViewModel {
         )
     ]
 
+    func getEvents() -> [CalendarEvent] {
+        return events
+    }
+    
+    func clearEvents() {
+        events.removeAll()
+    }
+    
     // MARK: - Google Calendar
 
     private let service = GTLRCalendarService()
