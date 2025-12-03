@@ -49,6 +49,8 @@ struct CalendarView: View {
         let localStart = appCalendar.date(from: dc)!
         return appCalendar.date(byAdding: .day, value: offset * 7, to: localStart)!
     }
+    
+    
 
     var body: some View {
         NavigationView {
@@ -193,7 +195,7 @@ struct ScrollableWeekView: View {
     func eventView(_ event: CalendarEvent) -> some View {
         let startF = hourFraction(event.start)
         let endF = hourFraction(event.end)
-        let y = startF * hourHeight
+        let y = (startF - 9) * hourHeight
         let h = max((endF - startF) * hourHeight, 15)
         
         return VStack(alignment: .leading) {
@@ -205,9 +207,10 @@ struct ScrollableWeekView: View {
     }
 
     var nowLine: some View {
-        let dc = appCalendar.dateComponents([.hour, .minute], from: Date())
-        let frac = CGFloat(dc.hour ?? 0) + CGFloat(dc.minute ?? 0)/60.0
-        return Rectangle().fill(Color.red).frame(height: 2).offset(y: frac * hourHeight)
+        let shiftedNow = Date().addingTimeInterval(-9 * 60 * 60)
+        let pos = hourFraction(shiftedNow) * hourHeight
+        
+        return Rectangle() .fill(Color.red) .frame(height: 2) .offset(y: pos)
     }
 
     func hourFraction(_ date: Date) -> CGFloat {
