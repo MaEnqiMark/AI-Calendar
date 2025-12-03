@@ -37,7 +37,6 @@ struct CalendarView: View {
     @Environment(AuthViewModel.self) var auth
 
     @State private var currentWeekOffset = 0
-    @Environment(CalendarEventViewModel.self) var vm
     
     @State private var showingDatePicker = false
     @State private var selectedDate = Date()
@@ -118,9 +117,9 @@ struct CalendarView: View {
             Task {
                 await vm.checkIfMustFetchEvents(offset: currentWeekOffset, user: currentUser)
             }
-            .navigationBarHidden(true)
         }
-            
+        .navigationBarHidden(true)
+
     }
     
     func jumpToWeek(of date: Date) {

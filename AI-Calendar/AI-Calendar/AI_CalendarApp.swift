@@ -12,6 +12,7 @@ import GoogleSignIn
 struct AI_CalendarApp: App {
     @State var auth = AuthViewModel()
     @State var calendarViewModel = CalendarEventViewModel()
+    @State var taskViewModel = TaskViewModel()
     
     @AppStorage("darkMode") private var darkMode = false
     
@@ -33,6 +34,7 @@ struct AI_CalendarApp: App {
             }
             .environment(auth)
             .environment(calendarViewModel)
+            .environment(taskViewModel)
             .onAppear {
                 GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
                     // Check if `user` exists; otherwise, do something with `error`
@@ -42,8 +44,6 @@ struct AI_CalendarApp: App {
                             do {
                                 let events = try await calendarViewModel.listEvents(user: user, offset: 2)
                                 print(events)
-                                // e.g. pass them to your calendarViewModel here
-                                // await calendarViewModel.setEvents(events)
                             } catch {
                                 print("Failed to list events:", error)
                             }
