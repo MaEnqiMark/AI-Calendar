@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import SwiftData
 
 // =======================================================
 // MARK: - GLOBAL CALENDAR
@@ -34,6 +35,8 @@ func todayAt(hour: Int) -> Date {
 struct CalendarView: View {
     @Environment(CalendarEventViewModel.self) var vm
     @Environment(AuthViewModel.self) var auth
+    @Environment(\.modelContext) var modelContext
+    @Environment(TaskViewModel.self) var taskVM
 
     @State private var currentWeekOffset = 0
     
@@ -66,7 +69,9 @@ struct CalendarView: View {
                         .font(.title3).bold().padding(.top, 8)
 
                     // Day Labels
-                    HStack(spacing: 0) {
+                    HStack(spacing: 5) {
+                        Spacer()
+                            .frame(width: 50)
                         ForEach(0..<7) { offset in
                             let d = appCalendar.date(byAdding: .day, value: offset, to: ws)!
                             VStack {
@@ -120,17 +125,21 @@ struct CalendarView: View {
             Task {
                 await vm.checkIfMustFetchEvents(offset: currentWeekOffset, user: currentUser)
             }
+        }.onAppear {
+            taskVM.calendarVM = vm      // connect TaskVM → CalendarVM
+            taskVM.syncToCalendar(context: modelContext)
         }
         .navigationBarHidden(true)
 
     }
-    
+
     func jumpToWeek(of date: Date) {
         let startOfToday = weekStart(for: 0)
         let targetStart = appCalendar.dateInterval(of: .weekOfYear, for: date)!.start
         let diff = appCalendar.dateComponents([.day], from: startOfToday, to: targetStart).day ?? 0
         currentWeekOffset = diff / 7
     }
+    
 }
 
 // =======================================================
@@ -232,3 +241,5 @@ func dayString(_ d: Date) -> String {
 func weekRangeString(start: Date, end: Date) -> String {
     let f = DateFormatter(); f.dateFormat = "MMM yyyy"; return "\(f.string(from: start)) – \(f.string(from: end))"
 }
+
+
