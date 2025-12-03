@@ -18,6 +18,7 @@ struct SettingsView: View {
     
     @AppStorage("workDayStart") private var workDayStart = 9
     @AppStorage("workDayEnd") private var workDayEnd = 17
+    @AppStorage("bufferMinutes") private var bufferMinutes = 15
 
     var body: some View {
         NavigationView {
@@ -45,6 +46,16 @@ struct SettingsView: View {
                         }
                     }
                     .pickerStyle(.menu)
+                    
+                    Picker("Buffer Between Tasks", selection: $bufferMinutes) {
+                                            Text("None").tag(0)
+                                            Text("5 min").tag(5)
+                                            Text("10 min").tag(10)
+                                            Text("15 min").tag(15)
+                                            Text("30 min").tag(30)
+                                            Text("1 hour").tag(60)
+                    }
+                    .pickerStyle(.menu)
                 }
 
                 GoogleSignInButton(action: auth.handleSignIn)
@@ -55,6 +66,9 @@ struct SettingsView: View {
                 taskVM.syncToCalendar()
             }
             .onChange(of: workDayEnd) {
+                taskVM.syncToCalendar()
+            }
+            .onChange(of: bufferMinutes) {
                 taskVM.syncToCalendar()
             }
         }

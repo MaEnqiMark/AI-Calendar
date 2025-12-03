@@ -16,6 +16,7 @@ import Observation
 class CalendarEventViewModel {
 
     // Events will update right after anyway, would be double re-rendering
+    @ObservationIgnored @AppStorage("bufferMinutes") private var bufferMinutes = 15
     @ObservationIgnored @AppStorage("workDayStart") private var workDayStart = 9
     @ObservationIgnored @AppStorage("workDayEnd") private var workDayEnd = 17
     
@@ -106,6 +107,11 @@ class CalendarEventViewModel {
             appCalendar.isDate($0.start, equalTo: day, toGranularity: .day)
         }
     }
+    
+    // Helper to convert minutes to seconds
+    private var currentBuffer: TimeInterval {
+        return TimeInterval(bufferMinutes * 60)
+    }
 
     // MARK: - Auto Schedule Logic
 
@@ -114,7 +120,7 @@ class CalendarEventViewModel {
         events.removeAll { $0.isTask }
         
         var searchLocation = Date()
-        let buffer: TimeInterval = 900 // 15 min buffer
+        let buffer = self.currentBuffer
 
         for task in tasks {
             if let startSlot = findNextAvailableSlot(
@@ -148,8 +154,8 @@ class CalendarEventViewModel {
             var checkDate = date
             let calendar = Calendar.current
             
-            // Define the standard buffer
-            let standardBuffer: TimeInterval = 900
+            // Define the buffer
+            let standardBuffer = self.currentBuffer
 
             for _ in 0..<3 {
                 let morning = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: checkDate)!
@@ -180,7 +186,6 @@ class CalendarEventViewModel {
                         let curr = dayEvents[i]
                         let next = dayEvents[i + 1]
                         
-                        // We
                         let potentialStart = max(curr.end.addingTimeInterval(standardBuffer), earliestStart)
                         
                         if next.start.timeIntervalSince(potentialStart) >= duration {
@@ -209,11 +214,15 @@ class CalendarEventViewModel {
         }
     
 
+    let highPriority = Color(red: 0.35, green: 0.00, blue: 0.70)
+    let mediumPriority = Color(red: 0.58, green: 0.35, blue: 0.92)
+    let lowPriority = Color(red: 0.85, green: 0.78, blue: 0.96)
+    
     private func colorForPriority(_ p: TaskPriority) -> Color {
         switch p {
-        case .high:   return .red
-        case .medium: return .blue
-        case .low:    return .gray
+        case .high:   return highPriority
+        case .medium: return mediumPriority
+        case .low:    return lowPriority
         }
     }
 
