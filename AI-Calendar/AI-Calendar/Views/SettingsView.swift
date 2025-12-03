@@ -11,6 +11,7 @@ import GoogleSignInSwift
 struct SettingsView: View {
     @Environment(AuthViewModel.self) var auth
     @Environment(TaskViewModel.self) var taskVM
+    @Environment(CalendarEventViewModel.self) var calVM
     
     @AppStorage("darkMode") private var darkMode = false
     @AppStorage("notificationsEnabled") private var notificationsEnabled = true
@@ -57,8 +58,14 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.menu)
                 }
-
-                GoogleSignInButton(action: auth.handleSignIn)
+                if (auth.getUser() != nil) {
+                    Button("Sign out of Google") {
+                        auth.handleSignOut()
+                        calVM.clearEvents()
+                    }
+                } else {
+                    GoogleSignInButton(action: auth.handleSignIn)
+                }
             }
             .navigationTitle("Settings")
             // Trigger the re-calculation of task placement on calendar
