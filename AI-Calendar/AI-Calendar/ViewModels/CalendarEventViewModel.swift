@@ -139,7 +139,7 @@ class CalendarEventViewModel {
     }
 
     // Find when the events can be placed, within the working hours of the day and next
-        private func findNextAvailableSlot(
+    private func findNextAvailableSlot(
             duration: TimeInterval,
             after date: Date,
             startHour: Int,
@@ -147,52 +147,43 @@ class CalendarEventViewModel {
         ) -> Date? {
             var checkDate = date
             let calendar = Calendar.current
+            
+            // Define the standard buffer
+            let standardBuffer: TimeInterval = 900
 
-            // Look 3 days ahead max
             for _ in 0..<3 {
-                // Define the bounds for this specific day
                 let morning = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: checkDate)!
                 let evening = calendar.date(bySettingHour: endHour, minute: 0, second: 0, of: checkDate)!
-
-                // The earliest we can schedule is the later of:
-                // 1. The generic search pointer (which includes the buffer from the last task)
-                // 2. The start of the work day (morning)
-                // We use 'max' to ensure we never ignore the buffer.
+                
+                // This 'earliestStart' tracks the end of the previous Auto-Scheduled Task
                 let earliestStart = checkDate < morning ? morning : checkDate
 
-                // Fetch events and sort them
                 let dayEvents = events(on: checkDate).sorted { $0.start < $1.start }
 
-                // --- CASE 1: Try to place BEFORE the first event ---
+                // --- CASE 1: Place BEFORE the first event ---
                 if let first = dayEvents.first {
-                    // If the gap between our start constraint and the first event is big enough
                     if first.start.timeIntervalSince(earliestStart) >= duration {
-                        // CRITICAL CHECK: Does it finish before the work day ends?
                         if earliestStart.addingTimeInterval(duration) <= evening {
                             return earliestStart
                         }
                     }
                 } else {
-                    // --- CASE 1b: No events at all this day ---
-                    // CRITICAL CHECK: Does it finish before the work day ends?
+                    // No events today
                     if earliestStart.addingTimeInterval(duration) <= evening {
                         return earliestStart
                     }
                 }
 
-                // --- CASE 2: Try to place BETWEEN events ---
+                // --- CASE 2: Place BETWEEN events ---
                 if dayEvents.count >= 2 {
                     for i in 0..<(dayEvents.count - 1) {
                         let curr = dayEvents[i]
                         let next = dayEvents[i + 1]
                         
-                        // The potential start is the end of the current event
-                        // BUT we must also respect the 'after' buffer.
-                        // Example: Event ends at 10:00. Buffer says wait til 10:15. We must start at 10:15.
-                        let potentialStart = max(curr.end, earliestStart)
+                        // We
+                        let potentialStart = max(curr.end.addingTimeInterval(standardBuffer), earliestStart)
                         
                         if next.start.timeIntervalSince(potentialStart) >= duration {
-                            // CRITICAL CHECK: Does it finish before the work day ends?
                             if potentialStart.addingTimeInterval(duration) <= evening {
                                 return potentialStart
                             }
@@ -200,22 +191,17 @@ class CalendarEventViewModel {
                     }
                 }
 
-                // --- CASE 3: Try to place AFTER the last event ---
+                // --- CASE 3: Place AFTER the last event ---
                 if let last = dayEvents.last {
-                    // Again, respect the buffer.
-                    let potentialStart = max(last.end, earliestStart)
                     
-                    // CRITICAL CHECK: Does it finish before the work day ends?
+                    let potentialStart = max(last.end.addingTimeInterval(standardBuffer), earliestStart)
                     if potentialStart.addingTimeInterval(duration) <= evening {
                         return potentialStart
                     }
                 }
 
-                // --- Move to Next Day ---
-                // Advance to the next calendar day
+                // Move to Next Day
                 guard let nextDay = calendar.date(byAdding: .day, value: 1, to: checkDate) else { break }
-                
-                // Reset the search pointer to the start of the work day for tomorrow
                 checkDate = calendar.date(bySettingHour: startHour, minute: 0, second: 0, of: nextDay)!
             }
 
